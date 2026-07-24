@@ -2,80 +2,92 @@
 
 ## v0.0.2 (2026-07-24)
 
-### 项目重命名
+### 语言重写：Python → Rust
 
-- **仓库**: `Python-Excel-to-PPT-Vocabulary-Tool` → `xlsx-to-pptx`
-- **二进制**: `单词卡片转换` → `英语助记卡片生成`
-- **窗口标题**: `单词PPT生成器` → `英语助记卡片生成`
+- **零运行时依赖**：单二进制 9.7 MB，无需安装 Python / pip
+- **编译时安全**：所有权模型消除内存 bug，`catch_unwind` 保护字体加载崩溃
+- **跨平台**：Linux / Windows (mingw 交叉编译) / macOS 三平台一致行为
 
-### 新增功能
+### 架构重写：单体脚本 → Workspace 三 Crate
 
-#### PPTX → PNG 渲染管线
-
-- 用 `resvg` + `usvg` + `tiny-skia` 替换 `ab_glyph` 逐像素渲染
-- 修复自闭合 XML 元素（`<a:off/>`）被忽略导致排版异常的 bug
-- 跨平台字体探测：Latin / CJK / Emoji 三层回退链
-- `catch_unwind` 保护损坏系统字体导致的崩溃
-- 每张 slide 独立渲染，单张失败不阻止其他
-- `AtomicBool` 取消支持（GUI 取消按钮）
-- 空白页检测：文字密度 < 0.01% 自动告警
-
-#### 全栈诊断系统
-
-- `DiagStore` 横切基础设施：`info` / `warn` / `error` 三级事件
-- NDJSON 结构化日志，`serde_json` 序列化
-- 11 个 `target` 命名空间覆盖全管线：`font_probe` / `parse` / `slide` / `render` / `verify` / `reader` / `generator` / `template` / `cli` / `gui` / `export`
-- 所有模块注入 `&mut DiagStore`，零 `_diag` 未使用参数
-- 修复 5 处 `let _ =` 静默吞错误
-
-#### CLI `diag` 子命令
-
-```bash
-英语助记卡片生成 diag export.ndjson --summary         # 会话总览
-英语助记卡片生成 diag export.ndjson --blank-slides     # 空白 slide 检查
-英语助记卡片生成 diag export.ndjson --font-trace       # 字体探测链
-英语助记卡片生成 diag export.ndjson --errors           # 所有 WARN/ERROR
-英语助记卡片生成 diag export.ndjson --slide 2          # 单张详情
-英语助记卡片生成 diag export.ndjson --json             # 原始 JSON（脚本消费）
+```
+crates/
+├── core/  # 纯逻辑，零 UI 依赖
+├── cli/   # 命令行 (clap)
+└── gui/   # 图形界面 (egui/eframe)
 ```
 
-#### 自定义 PPTX 模板
+- CLI + GUI 合并为单二进制：`argc > 1` → CLI，否则 → GUI
+- 公共 API 向后兼容，调用方无需修改
 
-- 用户在 PowerPoint 中自由设计排版，`{{占位符}}` 标记数据位置
-- 支持 6 个字段：`{{单词}}` `{{音标}}` `{{词根词缀}}` `{{例句}}` `{{例句释义}}` `{{单词释义}}`
-- 占位符扫描/替换/校验，兼容 PowerPoint 拆分文本
-- 条目数超过模板幻灯片数时自动复制最后一张
+### PNG 导出管线重写：ab_glyph → resvg + SVG
 
-### 文档
+| 层 | 旧方案 | 新方案 |
+|---|---|---|
+| XML 解析 | `Event::Start` only，自闭合元素忽略 | `Event::Start` + `Event::Empty` |
+| 中间格式 | 无（直接 pixel buffer） | SVG（resvg 原生消费） |
+| 字体渲染 | `ab_glyph` 逐像素 rasterize | `resvg` + `rustybuzz`（HarfBuzz 文本整形） |
+| 字体查找 | 手动扫描系统目录 | `fontdb` 自动发现 + 通用族映射 |
 
-- `AGENTS.md`: AI 代理规则（架构 / TDD / DiagStore API / 错误处理 / commit 规范）
-- `.github/copilot-instructions.md`: Copilot 专属指令
-- `docs/diagnostics.md`: NDJSON 格式规范 + Agent 诊断工作流 + jq / Python 示例
-- `docs/superpowers/specs/`: 设计规格（架构 / 字体策略 / 审计缺口）
-- `docs/superpowers/plans/`: 14 任务 TDD 实现计划
+- 修复 `<a:off/>` 等自闭合 XML 元素被忽略的根因 bug
+- 跨平台字体探测：Latin / CJK / Emoji 三层回退链
+- 空白页检测：文字密度 < 0.01% 自动告警
+
+### PPTX 生成重写：python-pptx → 手写 OOXML
+
+- 内嵌固定模板文本替换（`__WORD__` / `__PHONETIC__` 等占位符）
+- 用户自定义模板模式：`{{单词}}` `{{音标}}` 等 6 字段占位符
+- PowerPoint 拆分文本兼容：`{{` `单词` `}}` 跨 `<a:r>` 元素处理
+- 条目数超模板幻灯片数时自动复制最后一张
+- OOXML 结构 100% 合规（模板来自 PowerPoint 认可版本）
+
+### 字体系统重写：嵌入字体 → 运行时探测
+
+- 移除嵌入字体文件，GUI 体积从 12 MB 降至 ~3 MB
+- 系统字体自动扫描：IPA 音标 + CJK 中文正常显示
+- Latin 回退链：`Segoe UI` → `Helvetica` → `Arial` → `DejaVu Sans`
+- CJK 回退链：`Microsoft YaHei` → `PingFang SC` → `Noto Sans CJK SC` → `WenQuanYi Micro Hei`
+- Emoji 回退链：`Segoe UI Emoji` → `Apple Color Emoji` → `Noto Color Emoji`
+
+### 错误处理重写：eprintln → DiagStore + NDJSON
+
+- `DiagStore` 横切基础设施：`info` / `warn` / `error` 三级事件
+- 11 个 `target` 命名空间覆盖全管线
+- 所有模块注入 `&mut DiagStore`，零 `_diag` 未使用参数
+- 修复 5 处 `let _ =` 静默吞错误
+- NDJSON 结构化日志，`serde_json` 序列化
+- CLI `diag` 子命令：`--summary` / `--blank-slides` / `--font-trace` / `--errors` / `--slide`
+
+### 提交历史重写：37 commits → 8 逻辑 commit
+
+```
+build:    项目脚手架与核心类型
+feat:     Excel/CSV 读取 + PPTX 生成 + 模板引擎
+feat:     图形界面 (egui/eframe)
+feat:     命令行接口 (clap)
+feat:     诊断基础设施 (DiagStore + NDJSON)
+feat:     PPTX→PNG 渲染管线 (resvg + SVG)
+docs:     项目规则 + 诊断指南 + 设计文档
+chore:    清理旧 Python 文件与冗余文档
+```
+
+### 测试
+
+- 全仓 74 个测试，零失败
+- TDD 强制执行：先写测试 → 验证失败 → 最少代码通过 → 重构
 
 ### CI/CD
 
 - 版本标签（`v*.*.*`）推送自动触发 Release 工作流
 - 三平台构建：Linux x86_64 / Windows x86_64 (mingw) / macOS x86_64
-- 产物自动附加到 GitHub Release
 
-### 清理
+### 项目重命名
 
-- 删除旧 Python 原型文件（`主程序.py` / `创建模板.py` / `打包配置.py`）
-- 删除 `单词PPT生成器.exe`
-- 删除 `HANDOVER.md`（内容合并到 `AGENTS.md` + `README.md`）
-- 合并 `io_other_error` 和 `if_same_then_else` 的 clippy 修复
-
-### 测试
-
-- 全仓 74 个测试，零失败
-- 新增 20 个 PNG 导出测试（20/20）
-- 新增 4 个 DiagStore 测试（4/4）
+- **仓库**: `Python-Excel-to-PPT-Vocabulary-Tool` → `xlsx-to-pptx`
+- **二进制**: `单词卡片转换` → `英语助记卡片生成`
 
 ---
 
 ## v0.0.1 (2026-02)
 
-- 初始原型：Python 实现
-- 基础 Excel → PPTX 转换
+Python 原型 — 基础 Excel → PPTX 转换
