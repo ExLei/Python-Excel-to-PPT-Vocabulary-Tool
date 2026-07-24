@@ -1,97 +1,187 @@
-# Python 单词PPT生成器
+# 单词卡片转换
 
-## 项目介绍
-纯纯人工智能生产，但是能用（
+Excel/CSV 词汇表 → 16:9 PPTX 单词幻灯片，一键生成。
 
-Python 单词PPT生成器是一个用于从Excel文件生成单词PPT演示文稿的工具。它可以帮助教师、学生或语言学习者快速创建包含单词、音标、词根词缀、例句和释义的PowerPoint幻灯片。
+纯 Rust 实现，零运行时依赖。**一个二进制通吃 CLI + GUI**：双击启动图形界面，命令行传参即走 CLI。
 
-## 功能特性
+- **双模式一个文件**：双击 → GUI；传参 → CLI
+- **多格式输入**：Excel (.xlsx) / CSV（UTF-8 / GBK / GB2312 / GB18030）
+- **自定义模板**：用户在 PowerPoint 中设计排版，软件填入数据
+- **PPTX 渲染 PNG**：解析幻灯片 XML 精确还原排版，零外部依赖
+- **批量处理**：遍历目录，continue-on-error，汇总报告
+- **跨平台**：Windows / macOS / Linux
+- **系统字体**：自动探测 + 多层回退，IPA 音标和中文正常显示
+- **可诊断**：NDJSON 结构化日志 + `diag` 子命令，Agent 可自动定位问题
+- **文件监听**：外部修改自动刷新预览
 
-- **图形化界面**：提供直观的Tkinter图形界面，支持文件选择和表格选择
-- **Excel表格支持**：从Excel文件读取单词数据，支持多个表格选择
-- **模板功能**：内置Excel模板文件，包含正确的列头和示例数据
-- **自动清理**：预览模板时自动创建临时文件，关闭后立即删除，避免文件残留
-- **中文友好**：支持中文界面和中文文件名，使用更加直观
-- **独立可执行文件**：打包为单一的Windows可执行文件，无需安装Python环境
+## 快速开始
 
-## 程序界面
-<img width="601" height="437" alt="PixPin_2026-02-09_00-59-25" src="https://github.com/user-attachments/assets/9c554d7c-25da-4d2b-a2b6-fb04177d7a96" />
+### 图形界面
 
-## 安装说明
+双击 `单词卡片转换.exe`：
 
-### 方法一：使用预编译的可执行文件
+1. **选择输入文件** — 支持 .xlsx / .csv，自动检测格式
+2. **选择工作表** — 下拉菜单列出所有 sheet（Excel 模式）
+3. **（可选）选择 PPTX 模板** — 含 `{{占位符}}` 的自定义版式
+4. **数据预览** — 自动加载前 100 行
+5. **生成PPT** — 显示进度，可随时取消
+6. **导出PNG** — 有预览数据即可导出，内部自动生成 PPTX 再渲染
 
-1. 从`dist`目录中找到`单词PPT生成器.exe`文件
-2. 直接双击运行，无需安装Python或其他依赖
+### 命令行
 
-### 方法二：从源码运行
+```bash
+# 基本用法（-o 可选，默认与输入同级目录）
+单词卡片转换 generate -i words.xlsx
 
-1. 确保安装了Python 3.7或更高版本
-2. 安装所需依赖：
-   ```bash
-   pip install -r requirements.txt
-   ```
-3. 运行主程序：
-   ```bash
-   python 主程序.py
-   ```
+# 使用自定义 PPTX 模板
+单词卡片转换 generate -i words.xlsx -t 我的版式.pptx
 
-## 使用方法
+# CSV 输入 + 指定编码
+单词卡片转换 generate -i words.csv -e GBK
 
-1. **启动程序**：双击`单词PPT生成器.exe`或从源码运行
-2. **选择Excel文件**：点击"浏览"按钮选择包含单词数据的Excel文件
-3. **选择表格**：从下拉菜单中选择包含单词数据的表格
-4. **设置输出文件**：默认输出为`words.pptx`，可根据需要修改
-5. **生成PPT**：点击"生成PPT"按钮，程序将自动生成包含单词卡片的PowerPoint文件
-6. **查看模板**：点击"打开模板"按钮查看Excel模板文件，了解正确的数据格式
+# 批量转换
+单词卡片转换 batch -i ./data/ -o ./output/
 
-## 数据格式要求
+# 强制覆盖
+单词卡片转换 generate -i words.xlsx -f
 
-Excel文件需要包含以下列：
+# 导出 PPTX 为 PNG
+单词卡片转换 export-png -i output.pptx -o ./png/
 
-| 列名 | 描述 |
-|------|------|
-| 英文单词 | 单词的英文拼写 |
-| 英文音标 | 单词的音标 |
-| 词根词缀 | 单词的词根词缀分析 |
-| 例句 | 包含该单词的例句 |
-| 例句释义 | 例句的中文释义 |
-| 单词释义 | 单词的中文释义 |
+# Excel/CSV 直接导出 PNG（内部生成 PPTX → 渲染）
+单词卡片转换 export-png -i words.xlsx -t 模板.pptx -o ./png/
 
-## 依赖项
+# 生成 PPTX 示例模板（含 {{占位符}}）
+单词卡片转换 template-pptx -o 示例模板.pptx
 
-- Python 3.7+
-- openpyxl - 用于读取Excel文件
-- python-pptx - 用于生成PowerPoint文件
-- Tkinter - 用于图形界面（Python标准库）
+# 生成 Excel 词汇表模板
+单词卡片转换 template -o 单词表模板.xlsx
 
-## 项目结构
+# 诊断导出问题
+单词卡片转换 diag export.ndjson --summary
+单词卡片转换 diag export.ndjson --blank-slides
+单词卡片转换 diag export.ndjson --font-trace
+## 数据格式
+
+Excel 需包含以下列（CSV 同理）：
+
+| 列名 | 说明 | 必填 |
+|------|------|------|
+| 英文单词 | 单词拼写 | **是** |
+| 英文音标 | IPA 音标 | 否 |
+| 词根词缀 | 词根词缀分析 | 否 |
+| 例句 | 包含该单词的例句 | 否 |
+| 例句释义 | 例句的中文释义 | 否 |
+| 单词释义 | 单词的中文释义 | 否 |
+
+- `英文单词` 为空 → 整行跳过
+- 其他字段为空 → 保留空位
+
+## 模板使用
+
+### PPTX 自定义模板
+
+在 PowerPoint 中自由设计排版，软件读取后批量填入数据。
+
+**工作流程：**
+
+```text
+1. 生成示例模板     →  单词卡片转换 template-pptx -o 我的版式.pptx
+2. 在 PowerPoint 中编辑  →  拖动文本框、改字体、调大小、换颜色
+3. 保存为模板       →  这就是你的模板文件
+4. 填入数据生成 PPT  →  单词卡片转换 generate -i words.xlsx -t 我的版式.pptx
+```
+
+**占位符规范：**
+
+| 占位符 | 对应字段 |
+|--------|---------|
+| `{{单词}}` | 英文单词（必填） |
+| `{{音标}}` | IPA 音标 |
+| `{{词根词缀}}` | 词根词缀 |
+| `{{例句}}` | 例句 |
+| `{{例句释义}}` | 例句的中文释义 |
+| `{{单词释义}}` | 单词的中文释义 |
+
+**规则：**
+- `{{单词}}` 必须存在，否则报错
+- 不需要的字段不放占位符即可
+- 前后文字保留：`词根词缀：{{词根词缀}}` → `词根词缀：ap-ple`
+- 条目数超过模板幻灯片数时自动复制最后一张
+- PNG 导出会解析模板 XML，精确还原字号、颜色、对齐、位置
+
+### Excel 数据模板
+
+```bash
+单词卡片转换 template -o 单词表.xlsx
+```
+
+## 构建
+
+```bash
+# 开发
+cargo build && cargo test --workspace
+
+# Windows 交叉编译（需 mingw-w64）
+cargo build --release --target x86_64-pc-windows-gnu
+```
+
+产物：`target/x86_64-pc-windows-gnu/release/单词卡片转换.exe` (~4.6 MB)
+
+## 架构
 
 ```
-Python_PPT单词生成模板/
-├── 主程序.py          # 主程序文件，包含GUI和核心功能
-├── 创建模板.py        # 用于创建Excel模板文件
-├── 打包配置.spec      # PyInstaller打包配置文件
-├── 单词表模板.xlsx    # Excel模板文件
-├── requirements.txt   # 依赖项列表
-├── README.md          # 项目说明文件
-└── dist/              # 打包输出目录
-    └── 单词PPT生成器.exe  # 打包后的可执行文件
+crates/
+├── core/              # 纯逻辑，零 UI 依赖
+│   ├── reader.rs           # Excel (calamine) / CSV 读取
+│   ├── generator.rs        # PPTX 生成（模板文本替换）
+│   ├── template_reader.rs  # 扫描/替换 {{占位符}}
+│   ├── template_pptx.rs    # 生成示例 PPTX 模板
+│   ├── template.rs         # Excel 模板导出
+│   ├── png_export.rs       # PPTX → PNG（解析 XML → SVG → resvg 渲染）
+│   └── types.rs            # WordEntry, 错误类型
+├── cli/               # CLI 逻辑 (clap)，含 diag 诊断子命令
+│   └── lib.rs
+└── gui/               # GUI (egui/eframe) + 统一入口
+    ├── main.rs             # args>1 → CLI；否则 → GUI + 系统字体
+    ├── app.rs              # 状态机
+    └── panels/
+        ├── file_picker.rs
+        ├── data_preview.rs
+        └── output_config.rs
 ```
 
-## 注意事项
+## 诊断
 
-1. 确保Excel文件中的列名与模板文件一致
-2. 生成PPT时，请确保目标输出路径有写入权限
-3. 预览模板文件时，Excel程序会在关闭后自动清理临时文件
-4. 如果遇到模板文件不存在的情况，程序会自动创建一个新的模板文件
+每次 PNG 导出自动生成 NDJSON 诊断日志。Agent 或人类可用 `diag` 子命令查询——无需写 SQL，无需 jq。
+
+```bash
+# 两步诊断任何问题
+单词卡片转换 export-png -i words.xlsx -o ./output/     # 导出（自动生成日志）
+单词卡片转换 diag ./output/export_*.ndjson --summary     # 查看诊断
+
+# 常用查询
+单词卡片转换 diag export.ndjson --blank-slides           # 哪些 slide 可能空白？
+单词卡片转换 diag export.ndjson --font-trace             # 用了什么字体？哪些缺失？
+单词卡片转换 diag export.ndjson --errors                 # 所有错误和警告
+单词卡片转换 diag export.ndjson --slide 2                # 单张 slide 完整详情
+```
+
+**完整参考：** [诊断指南](docs/diagnostics.md) — NDJSON 格式规范、Agent 诊断工作流、jq/Python 脚本示例、日志文件管理。
 
 ## 故障排除
 
-- **模板文件不存在**：程序会自动创建模板文件，无需手动操作
-- **Excel文件打开失败**：请确保Excel文件格式正确，且没有被其他程序占用
-- **生成PPT失败**：检查Excel文件中的数据格式是否正确，特别是列名是否与模板一致
+| 问题 | 诊断命令 | 解读 |
+|------|---------|------|
+| PNG 空白/文字缺失 | `diag export.ndjson --blank-slides` | density=0% + 有 text 元素 → 字体；density=0% + 无 text 元素 → 数据为空 |
+| 中文显示为方框 | `diag export.ndjson --font-trace` | cjk chain 全部 [✗] → 安装中文字体 |
+| 音标显示为方框 | `diag export.ndjson --font-trace` | latin chain 全部 [✗] → 安装 DejaVu / Segoe UI |
+| emoji 显示为方框 | `diag export.ndjson --font-trace` | emoji chain 全部 [✗] → 安装 emoji 字体 |
+| 部分字段未显示 | `diag export.ndjson --slide N` | 查看 fields_skipped → reason 列 |
+| 导出卡住 | `tail -5 export.ndjson` | 最后一条事件定位卡住位置 |
+| CSV 中文乱码 | — | 用 `-e GBK` 指定编码 |
+| 模板缺少 `{{单词}}` | — | 至少一张幻灯片须含 `{{单词}}` |
 
 ## 许可证
 
-本项目采用MIT许可证，详见LICENSE文件。
+GNU Affero General Public License v3.0，详见 [LICENSE](LICENSE)。
