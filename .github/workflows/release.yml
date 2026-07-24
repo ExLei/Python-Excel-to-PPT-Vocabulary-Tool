@@ -44,14 +44,13 @@ jobs:
       - name: Rename binary
         shell: bash
         run: |
-          cd target/${{ matrix.target }}/release
-          BIN_NAME="英语助记卡片生成"
+          EXT=""
           if [[ "${{ matrix.target }}" == *"windows"* ]]; then
-            BIN_NAME="${BIN_NAME}.exe"
+            EXT=".exe"
           fi
-          cp "$BIN_NAME" "${{ github.workspace }}/xlsx-to-pptx-${{ matrix.suffix }}${BIN_NAME##*.}"
-          cd "${{ github.workspace }}"
-          ls -lh xlsx-to-pptx-*
+          BIN_NAME="英语助记卡片生成${EXT}"
+          cp "target/${{ matrix.target }}/release/$BIN_NAME" "xlsx-to-pptx-${{ matrix.suffix }}${EXT}"
+          ls -lh xlsx-to-pptx-${{ matrix.suffix }}${EXT}
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
