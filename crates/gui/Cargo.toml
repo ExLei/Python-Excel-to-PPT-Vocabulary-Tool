@@ -5,7 +5,7 @@ edition.workspace = true
 license.workspace = true
 
 [[bin]]
-name = "单词卡片转换"
+name = "英语助记卡片生成"
 path = "src/main.rs"
 
 [dependencies]

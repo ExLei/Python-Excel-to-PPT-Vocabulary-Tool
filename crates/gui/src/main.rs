@@ -142,10 +142,8 @@ fn run_gui() -> Result<(), eframe::Error> {
         viewport: egui::ViewportBuilder::default().with_inner_size([960.0, 700.0]),
         ..Default::default()
     };
-
     eframe::run_native(
-        "单词PPT生成器",
-        options,
+        "英语助记卡片生成",
         Box::new(|cc| {
             let mut fonts = egui::FontDefinitions::default();
             load_system_fonts(&mut fonts);

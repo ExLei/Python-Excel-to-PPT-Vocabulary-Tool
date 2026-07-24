@@ -2,17 +2,17 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use clap::{Parser, Subcommand};
-use vocab_core::generator::{generate, generate_from_template};
 use vocab_core::diag::DiagStore;
+use vocab_core::generator::{generate, generate_from_template};
 use vocab_core::png_export;
 use vocab_core::reader::{list_sheets, load};
 use vocab_core::template::export_template;
 use vocab_core::template_pptx::generate_example_pptx;
 use vocab_core::types::InputSource;
 
-/// 单词PPT生成器 — 从 Excel/CSV 词汇表一键生成 PPTX 单词课件
+/// 英语助记卡片生成 — 从 Excel/CSV 词汇表一键生成 PPTX 单词课件
 #[derive(Parser)]
-#[command(name = "单词ppt", version, about)]
+#[command(name = "英语助记卡片生成", version, about)]
 struct Cli {
     #[command(subcommand)]
     command: Command,
@@ -142,7 +142,12 @@ enum Command {
 }
 
 /// 根据扩展名和参数构建 InputSource
-fn guess_source(path: &Path, sheet: Option<&str>, encoding: &str, diag: &mut DiagStore) -> Result<InputSource, String> {
+fn guess_source(
+    path: &Path,
+    sheet: Option<&str>,
+    encoding: &str,
+    diag: &mut DiagStore,
+) -> Result<InputSource, String> {
     let ext = path
         .extension()
         .and_then(|e| e.to_str())
@@ -187,16 +192,27 @@ fn generate_one(
     let total = entries.len();
 
     if let Some(tpl) = template {
-        generate_from_template(&entries, tpl, output, |current, _total| {
-            print!("\r生成进度: {current}/{_total}");
-            true
-        }, diag)
+        generate_from_template(
+            &entries,
+            tpl,
+            output,
+            |current, _total| {
+                print!("\r生成进度: {current}/{_total}");
+                true
+            },
+            diag,
+        )
         .map_err(|e| e.to_string())?;
     } else {
-        generate(&entries, output, |current, _total| {
-            print!("\r生成进度: {current}/{_total}");
-            true
-        }, diag)
+        generate(
+            &entries,
+            output,
+            |current, _total| {
+                print!("\r生成进度: {current}/{_total}");
+                true
+            },
+            diag,
+        )
         .map_err(|e| e.to_string())?;
     }
 
@@ -344,7 +360,7 @@ pub fn run() -> Result<(), String> {
             } else {
                 png_export::export_entries_to_png(&entries, &output)
             }
-                .map_err(|e| format!("PNG 导出失败: {e}"))?;
+            .map_err(|e| format!("PNG 导出失败: {e}"))?;
             println!("完成: {} 张图片", pngs.len());
             for p in &pngs {
                 println!("  {}", p.display());
@@ -442,10 +458,9 @@ pub fn run() -> Result<(), String> {
                         .iter()
                         .filter(|e| {
                             let msg = e.get("message").and_then(|v| v.as_str()).unwrap_or("");
-                            let in_msg =
-                                msg.contains(&format!("slide {} ", n))
-                                    || msg.contains(&format!("slide_{}", n))
-                                    || msg.contains(&format!("slide {}\n", n));
+                            let in_msg = msg.contains(&format!("slide {} ", n))
+                                || msg.contains(&format!("slide_{}", n))
+                                || msg.contains(&format!("slide {}\n", n));
                             let in_fields = e
                                 .get("fields")
                                 .and_then(|v| v.get("slide"))
@@ -466,9 +481,7 @@ pub fn run() -> Result<(), String> {
                 } else if font_trace {
                     events
                         .iter()
-                        .filter(|e| {
-                            e.get("target").and_then(|v| v.as_str()) == Some("font_probe")
-                        })
+                        .filter(|e| e.get("target").and_then(|v| v.as_str()) == Some("font_probe"))
                         .collect()
                 } else if errors {
                     events

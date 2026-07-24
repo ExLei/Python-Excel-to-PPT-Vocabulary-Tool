@@ -1,4 +1,4 @@
-# 单词卡片转换
+# 英语助记卡片生成
 
 Excel/CSV 词汇表 → 16:9 PPTX 单词幻灯片，一键生成。
 
@@ -18,7 +18,7 @@ Excel/CSV 词汇表 → 16:9 PPTX 单词幻灯片，一键生成。
 
 ### 图形界面
 
-双击 `单词卡片转换.exe`：
+双击 `英语助记卡片生成.exe`：
 
 1. **选择输入文件** — 支持 .xlsx / .csv，自动检测格式
 2. **选择工作表** — 下拉菜单列出所有 sheet（Excel 模式）
@@ -31,36 +31,36 @@ Excel/CSV 词汇表 → 16:9 PPTX 单词幻灯片，一键生成。
 
 ```bash
 # 基本用法（-o 可选，默认与输入同级目录）
-单词卡片转换 generate -i words.xlsx
+英语助记卡片生成 generate -i words.xlsx
 
 # 使用自定义 PPTX 模板
-单词卡片转换 generate -i words.xlsx -t 我的版式.pptx
+英语助记卡片生成 generate -i words.xlsx -t 我的版式.pptx
 
 # CSV 输入 + 指定编码
-单词卡片转换 generate -i words.csv -e GBK
+英语助记卡片生成 generate -i words.csv -e GBK
 
 # 批量转换
-单词卡片转换 batch -i ./data/ -o ./output/
+英语助记卡片生成 batch -i ./data/ -o ./output/
 
 # 强制覆盖
-单词卡片转换 generate -i words.xlsx -f
+英语助记卡片生成 generate -i words.xlsx -f
 
 # 导出 PPTX 为 PNG
-单词卡片转换 export-png -i output.pptx -o ./png/
+英语助记卡片生成 export-png -i output.pptx -o ./png/
 
 # Excel/CSV 直接导出 PNG（内部生成 PPTX → 渲染）
-单词卡片转换 export-png -i words.xlsx -t 模板.pptx -o ./png/
+英语助记卡片生成 export-png -i words.xlsx -t 模板.pptx -o ./png/
 
 # 生成 PPTX 示例模板（含 {{占位符}}）
-单词卡片转换 template-pptx -o 示例模板.pptx
+英语助记卡片生成 template-pptx -o 示例模板.pptx
 
 # 生成 Excel 词汇表模板
-单词卡片转换 template -o 单词表模板.xlsx
+英语助记卡片生成 template -o 单词表模板.xlsx
 
 # 诊断导出问题
-单词卡片转换 diag export.ndjson --summary
-单词卡片转换 diag export.ndjson --blank-slides
-单词卡片转换 diag export.ndjson --font-trace
+英语助记卡片生成 diag export.ndjson --summary
+英语助记卡片生成 diag export.ndjson --blank-slides
+英语助记卡片生成 diag export.ndjson --font-trace
 ## 数据格式
 
 Excel 需包含以下列（CSV 同理）：
@@ -86,10 +86,10 @@ Excel 需包含以下列（CSV 同理）：
 **工作流程：**
 
 ```text
-1. 生成示例模板     →  单词卡片转换 template-pptx -o 我的版式.pptx
+1. 生成示例模板     →  英语助记卡片生成 template-pptx -o 我的版式.pptx
 2. 在 PowerPoint 中编辑  →  拖动文本框、改字体、调大小、换颜色
 3. 保存为模板       →  这就是你的模板文件
-4. 填入数据生成 PPT  →  单词卡片转换 generate -i words.xlsx -t 我的版式.pptx
+4. 填入数据生成 PPT  →  英语助记卡片生成 generate -i words.xlsx -t 我的版式.pptx
 ```
 
 **占位符规范：**
@@ -113,7 +113,7 @@ Excel 需包含以下列（CSV 同理）：
 ### Excel 数据模板
 
 ```bash
-单词卡片转换 template -o 单词表.xlsx
+英语助记卡片生成 template -o 单词表.xlsx
 ```
 
 ## 构建
@@ -126,7 +126,7 @@ cargo build && cargo test --workspace
 cargo build --release --target x86_64-pc-windows-gnu
 ```
 
-产物：`target/x86_64-pc-windows-gnu/release/单词卡片转换.exe` (~4.6 MB)
+产物：`target/x86_64-pc-windows-gnu/release/英语助记卡片生成.exe` (~4.6 MB)
 
 ## 架构
 
@@ -157,14 +157,14 @@ crates/
 
 ```bash
 # 两步诊断任何问题
-单词卡片转换 export-png -i words.xlsx -o ./output/     # 导出（自动生成日志）
-单词卡片转换 diag ./output/export_*.ndjson --summary     # 查看诊断
+英语助记卡片生成 export-png -i words.xlsx -o ./output/     # 导出（自动生成日志）
+英语助记卡片生成 diag ./output/export_*.ndjson --summary     # 查看诊断
 
 # 常用查询
-单词卡片转换 diag export.ndjson --blank-slides           # 哪些 slide 可能空白？
-单词卡片转换 diag export.ndjson --font-trace             # 用了什么字体？哪些缺失？
-单词卡片转换 diag export.ndjson --errors                 # 所有错误和警告
-单词卡片转换 diag export.ndjson --slide 2                # 单张 slide 完整详情
+英语助记卡片生成 diag export.ndjson --blank-slides           # 哪些 slide 可能空白？
+英语助记卡片生成 diag export.ndjson --font-trace             # 用了什么字体？哪些缺失？
+英语助记卡片生成 diag export.ndjson --errors                 # 所有错误和警告
+英语助记卡片生成 diag export.ndjson --slide 2                # 单张 slide 完整详情
 ```
 
 **完整参考：** [诊断指南](docs/diagnostics.md) — NDJSON 格式规范、Agent 诊断工作流、jq/Python 脚本示例、日志文件管理。

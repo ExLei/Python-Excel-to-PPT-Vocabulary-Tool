@@ -1,4 +1,4 @@
-# Copilot Instructions — 单词卡片转换
+# Copilot Instructions — 英语助记卡片生成
 
 > 此文件为 GitHub Copilot 提供项目专属上下文。AGENTS.md 中的完整规则同样适用。
 

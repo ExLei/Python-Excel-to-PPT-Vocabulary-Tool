@@ -1,4 +1,4 @@
-# AGENTS.md — 单词卡片转换 项目规则
+# AGENTS.md — 英语助记卡片生成 项目规则
 
 > **受众：** AI Agent（GitHub Copilot / Claude Code / Cursor / Codex）  
 > **人类开发者同样适用**
@@ -9,9 +9,9 @@
 
 Excel/CSV 词汇表 → 16:9 PPTX 单词幻灯片。纯 Rust，单二进制（CLI + GUI）。
 
-- **仓库：** `~/dev/Python-Excel-to-PPT-Vocabulary-Tool`
+- **仓库：** `~/dev/xlsx-to-pptx`
 - **构建：** `cargo build && cargo test --workspace`
-- **运行：** `cargo run -- <命令>` 或 `./target/release/单词卡片转换 <命令>`
+- **运行：** `cargo run -- <命令>` 或 `./target/release/英语助记卡片生成 <命令>`
 - **测试：** TDD 强制，先写测试再看它失败
 
 ---
@@ -173,12 +173,12 @@ let _ = diag.write_ndjson_to_file(&path);
 
 ```bash
 # Agent 用 diag 子命令（零学习成本）
-单词卡片转换 diag export.ndjson --summary
-单词卡片转换 diag export.ndjson --blank-slides
-单词卡片转换 diag export.ndjson --font-trace
-单词卡片转换 diag export.ndjson --errors
-单词卡片转换 diag export.ndjson --slide 3
-单词卡片转换 diag export.ndjson --json --blank-slides  # 脚本消费
+英语助记卡片生成 diag export.ndjson --summary
+英语助记卡片生成 diag export.ndjson --blank-slides
+英语助记卡片生成 diag export.ndjson --font-trace
+英语助记卡片生成 diag export.ndjson --errors
+英语助记卡片生成 diag export.ndjson --slide 3
+英语助记卡片生成 diag export.ndjson --json --blank-slides  # 脚本消费
 
 # 人类/高级用 jq
 grep '"ERROR"' export.ndjson | jq .
