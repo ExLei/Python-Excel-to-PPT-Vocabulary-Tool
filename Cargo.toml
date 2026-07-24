@@ -1,0 +1,15 @@
+[workspace]
+members = ["crates/core", "crates/cli", "crates/gui"]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "AGPL-3.0-only"
+
+[profile.release]
+opt-level = "z"     # optimize for size
+lto = true          # link-time optimization
+codegen-units = 1   # better optimization
+panic = "abort"     # remove unwind tables
+strip = true        # strip symbols
