@@ -144,7 +144,8 @@ fn run_gui() -> Result<(), eframe::Error> {
     };
     eframe::run_native(
         "英语助记卡片生成",
-        Box::new(|cc| {
+        options,
+        Box::new(|cc: &eframe::CreationContext| {
             let mut fonts = egui::FontDefinitions::default();
             load_system_fonts(&mut fonts);
             cc.egui_ctx.set_fonts(fonts);
