@@ -58,18 +58,6 @@ crates/
 - NDJSON 结构化日志，`serde_json` 序列化
 - CLI `diag` 子命令：`--summary` / `--blank-slides` / `--font-trace` / `--errors` / `--slide`
 
-### 提交历史重写：37 commits → 8 逻辑 commit
-
-```
-build:    项目脚手架与核心类型
-feat:     Excel/CSV 读取 + PPTX 生成 + 模板引擎
-feat:     图形界面 (egui/eframe)
-feat:     命令行接口 (clap)
-feat:     诊断基础设施 (DiagStore + NDJSON)
-feat:     PPTX→PNG 渲染管线 (resvg + SVG)
-docs:     项目规则 + 诊断指南 + 设计文档
-chore:    清理旧 Python 文件与冗余文档
-```
 
 ### 测试
 
