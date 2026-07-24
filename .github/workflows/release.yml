@@ -1,0 +1,76 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            suffix: linux-x86_64
+          - target: x86_64-pc-windows-gnu
+            os: ubuntu-latest
+            suffix: windows-x86_64
+          - target: x86_64-apple-darwin
+            os: macos-latest
+            suffix: macos-x86_64
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install cross-compile deps (Windows)
+        if: matrix.target == 'x86_64-pc-windows-gnu'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mingw-w64
+
+      - name: Build
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Rename binary
+        shell: bash
+        run: |
+          cd target/${{ matrix.target }}/release
+          BIN_NAME="英语助记卡片生成"
+          if [[ "${{ matrix.target }}" == *"windows"* ]]; then
+            BIN_NAME="${BIN_NAME}.exe"
+          fi
+          cp "$BIN_NAME" "${{ github.workspace }}/xlsx-to-pptx-${{ matrix.suffix }}${BIN_NAME##*.}"
+          cd "${{ github.workspace }}"
+          ls -lh xlsx-to-pptx-*
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: xlsx-to-pptx-${{ matrix.suffix }}
+          path: xlsx-to-pptx-${{ matrix.suffix }}*
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: xlsx-to-pptx-*
+          merge-multiple: true
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ github.ref_name }}
+          generate_release_notes: true
+          files: xlsx-to-pptx-*
