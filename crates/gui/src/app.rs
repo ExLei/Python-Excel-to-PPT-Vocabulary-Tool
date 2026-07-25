@@ -6,8 +6,8 @@ use std::thread;
 use std::time::SystemTime;
 
 use eframe::egui;
-use vocab_core::types::{GenerateError, InputSource, WordEntry};
 use vocab_core::diag::DiagStore;
+use vocab_core::types::{GenerateError, InputSource, WordEntry};
 use vocab_core::{generator, png_export, reader, template, template_pptx};
 
 use crate::panels::{data_preview, file_picker, output_config};
@@ -23,11 +23,19 @@ pub enum InputMode {
 pub enum AppState {
     #[default]
     Idle,
-    Loading { _path: PathBuf },
-    Preview { entries: Vec<WordEntry> },
+    Loading {
+        _path: PathBuf,
+    },
+    Preview {
+        entries: Vec<WordEntry>,
+    },
     Generating,
-    Done { count: usize },
-    Error { message: String },
+    Done {
+        count: usize,
+    },
+    Error {
+        message: String,
+    },
 }
 impl AppState {
     pub(crate) fn is_generating(&self) -> bool {
@@ -153,8 +161,8 @@ impl VocabPptApp {
     }
     fn fetch_sheets(&mut self) {
         self.diag.clear();
-        self.sheets =
-            reader::list_sheets(std::path::Path::new(&self.input_path), &mut self.diag).unwrap_or_default();
+        self.sheets = reader::list_sheets(std::path::Path::new(&self.input_path), &mut self.diag)
+            .unwrap_or_default();
         self.selected_sheet = self.sheets.first().cloned().unwrap_or_default();
     }
     fn try_load(&mut self, ctx: &egui::Context) {
@@ -215,19 +223,30 @@ impl VocabPptApp {
         thread::spawn(move || {
             let mut diag = DiagStore::new();
             let r = if let Some(tpl) = template {
-                generator::generate_from_template(&entries, &tpl, &output, |cur, _| {
-                    if let Ok(mut s) = shared.lock() {
-                        s.current = cur;
-                    }
-                    !cancel.load(Ordering::Relaxed)
-                }, &mut diag)
+                generator::generate_from_template(
+                    &entries,
+                    &tpl,
+                    &output,
+                    |cur, _| {
+                        if let Ok(mut s) = shared.lock() {
+                            s.current = cur;
+                        }
+                        !cancel.load(Ordering::Relaxed)
+                    },
+                    &mut diag,
+                )
             } else {
-                generator::generate(&entries, &output, |cur, _| {
-                    if let Ok(mut s) = shared.lock() {
-                        s.current = cur;
-                    }
-                    !cancel.load(Ordering::Relaxed)
-                }, &mut diag)
+                generator::generate(
+                    &entries,
+                    &output,
+                    |cur, _| {
+                        if let Ok(mut s) = shared.lock() {
+                            s.current = cur;
+                        }
+                        !cancel.load(Ordering::Relaxed)
+                    },
+                    &mut diag,
+                )
             };
             if let Ok(mut s) = shared.lock() {
                 s.current = total;
@@ -246,9 +265,7 @@ impl VocabPptApp {
             shared
                 .lock()
                 .ok()
-                .and_then(|mut s| {
-                    s.result.take().map(|r| (r, s.total, s.diag.take()))
-                })
+                .and_then(|mut s| s.result.take().map(|r| (r, s.total, s.diag.take())))
         };
         if let Some((result, total, gen_diag)) = done {
             self.gen_shared = None;
@@ -312,6 +329,11 @@ impl VocabPptApp {
             .parent()
             .unwrap_or(Path::new("."))
             .join("png_output");
+        let template_path = if self.template_path.is_empty() {
+            None
+        } else {
+            Some(PathBuf::from(&self.template_path))
+        };
         let handle = Arc::new(Mutex::new(None));
         let cancel = Arc::new(AtomicBool::new(false));
         self.cancel_png_flag = Some(cancel.clone());
@@ -322,8 +344,41 @@ impl VocabPptApp {
                 *handle.lock().unwrap() = Some(Err(format!("创建输出目录失败: {e}")));
                 return;
             }
-            let res = png_export::export_entries_to_png_with_cancel(&entries, &output_dir, Some(&cancel))
-                .map_err(|e| e.to_string());
+            let res: Result<Vec<PathBuf>, String> = if let Some(tpl) = &template_path {
+                let pptx_path = output_dir.join("_generated.pptx");
+                if pptx_path.exists() {
+                    let _ = std::fs::remove_file(&pptx_path);
+                }
+                match vocab_core::generator::generate_from_template(
+                    &entries,
+                    tpl,
+                    &pptx_path,
+                    |_, _| true,
+                    &mut vocab_core::diag::DiagStore::new(),
+                ) {
+                    Err(e) => Err(format!("生成 PPTX 失败: {e}")),
+                    Ok(()) => {
+                        let mut rd = vocab_core::diag::DiagStore::new();
+                        match vocab_core::renderer::render_pptx(&pptx_path, &output_dir, &mut rd) {
+                            Ok(pngs) => {
+                                let _ = std::fs::remove_file(&pptx_path);
+                                Ok(pngs)
+                            }
+                            Err(vocab_core::renderer::RenderError::NoRenderer) => {
+                                let _ = std::fs::remove_file(&pptx_path);
+                                Err(vocab_core::renderer::RENDERER_HELP.to_string())
+                            }
+                            Err(e) => {
+                                let _ = std::fs::remove_file(&pptx_path);
+                                Err(format!("外部渲染器失败: {e}"))
+                            }
+                        }
+                    }
+                }
+            } else {
+                png_export::export_entries_to_png_with_cancel(&entries, &output_dir, Some(&cancel))
+                    .map_err(|e| e.to_string())
+            };
             *handle.lock().unwrap() = Some(res);
         });
     }

@@ -6,6 +6,7 @@ use vocab_core::diag::DiagStore;
 use vocab_core::generator::{generate, generate_from_template};
 use vocab_core::png_export;
 use vocab_core::reader::{list_sheets, load};
+use vocab_core::renderer;
 use vocab_core::template::export_template;
 use vocab_core::template_pptx::generate_example_pptx;
 use vocab_core::types::InputSource;
@@ -220,6 +221,44 @@ fn generate_one(
     Ok(total)
 }
 
+/// Try external renderer first, fall back to SVG pipeline.
+/// Generate PPTX from template and render with external tool.
+/// Requires LibreOffice or WPS to be installed.
+fn export_png_via_renderer(
+    entries: &[vocab_core::types::WordEntry],
+    template_path: &Path,
+    output_dir: &Path,
+    diag: &mut DiagStore,
+) -> Result<Vec<PathBuf>, String> {
+    // Step 1: generate PPTX from template
+    fs::create_dir_all(output_dir).map_err(|e| format!("创建输出目录失败: {e}"))?;
+    let pptx_path = output_dir.join("_generated.pptx");
+    if pptx_path.exists() {
+        let _ = fs::remove_file(&pptx_path);
+    }
+    generate_from_template(entries, template_path, &pptx_path, |_, _| true, diag)
+        .map_err(|e| format!("生成 PPTX 失败: {e}"))?;
+
+    // Step 2: external renderer required for template-based export
+    match renderer::render_pptx(&pptx_path, output_dir, diag) {
+        Ok(pngs) => {
+            let _ = fs::remove_file(&pptx_path);
+            Ok(pngs)
+        }
+        Err(renderer::RenderError::NoRenderer) => {
+            let _ = fs::remove_file(&pptx_path);
+            Err(renderer::RENDERER_HELP.to_string())
+        }
+        Err(e) => {
+            let _ = fs::remove_file(&pptx_path);
+            Err(format!(
+                "外部渲染器失败: {e}\n\n{}",
+                renderer::RENDERER_HELP
+            ))
+        }
+    }
+}
+
 /// CLI 模式入口，由 main.rs 或 GUI 入口调用
 pub fn run() -> Result<(), String> {
     let cli = Cli::parse();
@@ -356,11 +395,11 @@ pub fn run() -> Result<(), String> {
                 output.display()
             );
             let pngs = if let Some(tpl) = &template {
-                png_export::export_with_template(&entries, tpl, &output)
+                export_png_via_renderer(&entries, tpl, &output, &mut diag)?
             } else {
                 png_export::export_entries_to_png(&entries, &output)
-            }
-            .map_err(|e| format!("PNG 导出失败: {e}"))?;
+                    .map_err(|e| format!("PNG 导出失败: {e}"))?
+            };
             println!("完成: {} 张图片", pngs.len());
             for p in &pngs {
                 println!("  {}", p.display());
