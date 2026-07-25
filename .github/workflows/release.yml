@@ -41,22 +41,53 @@ jobs:
       - name: Build
         run: cargo build --release --target ${{ matrix.target }}
 
-      - name: Rename binary
+      - name: Package
         shell: bash
         run: |
-          EXT=""
-          if [[ "${{ matrix.target }}" == *"windows"* ]]; then
-            EXT=".exe"
+          cd target/${{ matrix.target }}/release
+          VERSION="${{ github.ref_name }}"
+          VERSION="${VERSION#v}"
+          SUFFIX="${{ matrix.suffix }}"
+
+          if [[ "${{ matrix.target }}" == *"linux"* ]]; then
+            PKG="xlsx-to-pptx-${SUFFIX}"
+            mkdir -p "${PKG}/DEBIAN" "${PKG}/usr/bin"
+            cp 英语助记卡片生成 "${PKG}/usr/bin/"
+            chmod 755 "${PKG}/usr/bin/英语助记卡片生成"
+            cat > "${PKG}/DEBIAN/control" << EOF
+Package: xlsx-to-pptx
+Version: ${VERSION}
+Section: utils
+Priority: optional
+Architecture: amd64
+Maintainer: ExLei
+Description: Excel/CSV to PPTX flashcard generator
+EOF
+            dpkg-deb --build "${PKG}" "${{ github.workspace }}/xlsx-to-pptx-${SUFFIX}.deb"
+            ls -lh "${{ github.workspace }}/xlsx-to-pptx-${SUFFIX}.deb"
+
+          elif [[ "${{ matrix.target }}" == *"apple"* ]]; then
+            PKG_ROOT="pkg-root"
+            mkdir -p "${PKG_ROOT}/usr/local/bin"
+            cp 英语助记卡片生成 "${PKG_ROOT}/usr/local/bin/"
+            chmod 755 "${PKG_ROOT}/usr/local/bin/英语助记卡片生成"
+            pkgbuild --root "${PKG_ROOT}" \
+              --identifier com.exlei.xlsx-to-pptx \
+              --version "${VERSION}" \
+              --install-location / \
+              "${{ github.workspace }}/xlsx-to-pptx-${SUFFIX}.pkg"
+            ls -lh "${{ github.workspace }}/xlsx-to-pptx-${SUFFIX}.pkg"
+
+          else
+            cp 英语助记卡片生成 "${{ github.workspace }}/xlsx-to-pptx-${SUFFIX}.exe"
+            ls -lh "${{ github.workspace }}/xlsx-to-pptx-${SUFFIX}.exe"
           fi
-          BIN_NAME="英语助记卡片生成${EXT}"
-          cp "target/${{ matrix.target }}/release/$BIN_NAME" "xlsx-to-pptx-${{ matrix.suffix }}${EXT}"
-          ls -lh xlsx-to-pptx-${{ matrix.suffix }}${EXT}
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: xlsx-to-pptx-${{ matrix.suffix }}
-          path: xlsx-to-pptx-${{ matrix.suffix }}*
+          path: xlsx-to-pptx-${{ matrix.suffix }}.*
 
   release:
     needs: build
