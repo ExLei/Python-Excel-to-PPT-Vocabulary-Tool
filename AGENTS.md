@@ -30,9 +30,10 @@ crates/
 │   │   ├── template_reader.rs  # 扫描/替换 {{占位符}}
 │   │   ├── template_pptx.rs # 生成示例 PPTX 模板
 │   │   ├── template.rs      # Excel 模板导出
-│   │   └── png_export/      # PNG 导出管线
+│   │   ├── renderer.rs      # PPTX→PNG 外部渲染器（Office/LibreOffice/WPS）
+│   │   └── png_export/      # 内置 PNG 降级管线（无模板时使用）
 │   │       ├── mod.rs       # 公共 API
-│   │       └── pipeline.rs  # font_probe → parse → SVG → render → verify
+│   │       └── pipeline.rs  # font_probe → SVG → render → verify
 │   └── tests/               # 集成测试
 ├── cli/                     # CLI (clap)，作为库供 GUI 调用
 │   └── src/lib.rs           # pub fn run() + diag 子命令
@@ -67,9 +68,12 @@ cargo build --release --target x86_64-pc-windows-gnu
 # 单个测试（带输出）
 cargo test -p vocab_core --test png_export_test -- --nocapture
 
-# 烟雾测试
+# 烟雾测试（无模板 — 内置 SVG 管线）
 cargo run --release -- export-png -i assets/template.xlsx -o /tmp/test/
 cargo run --release -- diag /tmp/test/export_*.ndjson --summary
+
+# 烟雾测试（有模板 — 需安装 Office/LibreOffice/WPS）
+cargo run --release -- export-png -i assets/template.xlsx -t assets/template.pptx -o /tmp/test2/
 ```
 
 ---
@@ -137,13 +141,12 @@ diag.write_ndjson_to_file(path)  // 写入文件
 ### target 命名规范
 
 | target | 使用模块 |
-|--------|---------|
 | `export` | png_export 导出生命周期 |
 | `font_probe` | 字体探测 |
-| `parse` | XML / 属性解析 |
 | `slide` | 单张 slide 处理 |
 | `render` | PNG 渲染 |
 | `verify` | 渲染后验证 |
+| `renderer` | 外部渲染器调用 |
 | `reader` | 文件读取 |
 | `generator` | PPTX 生成 |
 | `template` | 模板解析 |
@@ -173,17 +176,16 @@ let _ = diag.write_ndjson_to_file(&path);
 
 ```bash
 # Agent 用 diag 子命令（零学习成本）
-英语助记卡片生成 diag export.ndjson --summary
-英语助记卡片生成 diag export.ndjson --blank-slides
-英语助记卡片生成 diag export.ndjson --font-trace
-英语助记卡片生成 diag export.ndjson --errors
-英语助记卡片生成 diag export.ndjson --slide 3
-英语助记卡片生成 diag export.ndjson --json --blank-slides  # 脚本消费
+英语助记卡片生成 diag export_diag.ndjson --summary
+英语助记卡片生成 diag export_diag.ndjson --blank-slides
+英语助记卡片生成 diag export_diag.ndjson --font-trace
+英语助记卡片生成 diag export_diag.ndjson --errors
+英语助记卡片生成 diag export_diag.ndjson --slide 3
+英语助记卡片生成 diag export_diag.ndjson --json --blank-slides  # 脚本消费
 
 # 人类/高级用 jq
-grep '"ERROR"' export.ndjson | jq .
-grep '"font_probe"' export.ndjson | grep '"selected":true' | jq .
-```
+grep '"ERROR"' export_diag.ndjson | jq .
+grep '"font_probe"' export_diag.ndjson | grep '"selected":true' | jq .
 
 ---
 
@@ -260,11 +262,14 @@ pub fn export_entries_to_png_with_cancel(entries, output_dir, cancel, diag) -> R
 
 ### 移除死代码
 
-以下已确认死亡，重构时删除：
-- `PngExportError::NoFontFound` → 激活使用
-- `SpState.cy` → 删除
-- `build_column_map` 的 `Result` 返回类型 → 改为直接返回 `HashMap`
-- `extract_headers` 闭包的 `Result` 包装 → 简化
+死代码会分散注意力并增加维护负担。以下已清理：
+- 模板 PNG 渲染的 SVG 解析管线（`parse_slide_xml`、`SpState`、`collect_attrs` 等）
+- 对外 API 保持稳定（`export_entries_to_png_with_cancel` 等）
+
+### 外部渲染器
+
+模板模式 PNG 导出依赖外部渲染器。如果检测到 PowerPoint / LibreOffice / WPS，自动调用；
+否则报错并列出安装命令。详见 `renderer.rs`。
 
 ---
 
@@ -292,7 +297,7 @@ pub fn export_entries_to_png_with_cancel(entries, output_dir, cancel, diag) -> R
 | 陷阱 | 正确做法 |
 |------|---------|
 | `r#"..."#` 中包含 `"#` 序列 | 用 `r##"..."##` 双 hash |
-| 自闭合 XML 元素 `<a:off/>` | 处理 `Event::Empty` 而非仅 `Event::Start` |
+| PowerPoint COM `Visible` 属性 | 使用 `[MsoTriState]::msoFalse`，`try/catch` 包裹 |
 | 字体缺失导致空白 PNG | `diag --font-trace` 定位，非静默失败 |
 | `format!` 中 `{var}` 语法 | Rust 2021 支持，确保 edtion="2021" |
 | `set_sans_serif_family` 不生效 | 需在 `usvg::Options` 之前设置 fontdb |
@@ -305,8 +310,7 @@ pub fn export_entries_to_png_with_cancel(entries, output_dir, cancel, diag) -> R
 - 设计规格：`docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md`
 - 实现计划：`docs/superpowers/plans/YYYY-MM-DD-<topic>.md`
 - 诊断指南：`docs/diagnostics.md`
-- NDJSON 日志：`<输出目录>/export_YYYYMMDD_HHmmss.ndjson`
-- PNG 输出：`<输出目录>/slide_<N>.png`（N 从 1 开始）
+- NDJSON 日志：`<输出目录>/export_diag.ndjson`
 
 ---
 
@@ -322,4 +326,4 @@ chore: ...
 docs: ...
 ```
 
-模块范围：`diag`, `pipeline`, `export`, `reader`, `generator`, `template`, `cli`, `gui`
+模块范围：`diag`, `pipeline`, `export`, `reader`, `generator`, `template`, `cli`, `gui`, `renderer`

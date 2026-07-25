@@ -1,5 +1,32 @@
 # 更新日志
 
+## v0.0.3 (2026-07-25)
+
+### PNG 导出重写：SVG 管线 → 外部渲染器
+
+- **模板模式**：调用本地 Office/LibreOffice/WPS 渲染 PPTX→PNG，像素级精确
+  - 优先级：PowerPoint (Windows COM) → LibreOffice → WPS
+  - 没装渲染器时明确报错，列出各平台安装命令
+  - `-WindowStyle Hidden` + `CREATE_NO_WINDOW` 抑制控制台窗口
+- **无模板模式**：保留内置 SVG 管线，零外部依赖
+
+### 死代码清理
+
+- 移除 SVG 模板解析管线：`parse_slide_xml`、`SpState`、`collect_attrs`、
+  `emu_to_px_*`、`parse_template`、`export_with_template`（~350 行）
+- 移除关联的 8 个死测试
+- 修复：模板缺字段时回退到默认布局，不再静默丢弃
+
+### CLI/GUI
+
+- CLI：`export-png -t` 走外部渲染器
+- GUI：PNG 按钮尊重模板路径字段
+
+### CI/CD
+
+- 发行版产物改为系统安装包：`.deb` (Linux)、`.pkg` (macOS)、`.exe` (Windows)
+- 中文二进制名通过 `ls` 兜底查找，避免 GitHub Actions 编码问题
+
 ## v0.0.2 (2026-07-24)
 
 ### 语言重写：Python → Rust

@@ -54,15 +54,7 @@ jobs:
             mkdir -p "${PKG}/DEBIAN" "${PKG}/usr/bin"
             cp 英语助记卡片生成 "${PKG}/usr/bin/"
             chmod 755 "${PKG}/usr/bin/英语助记卡片生成"
-            cat > "${PKG}/DEBIAN/control" << EOF
-Package: xlsx-to-pptx
-Version: ${VERSION}
-Section: utils
-Priority: optional
-Architecture: amd64
-Maintainer: ExLei
-Description: Excel/CSV to PPTX flashcard generator
-EOF
+            printf 'Package: xlsx-to-pptx\nVersion: %s\nSection: utils\nPriority: optional\nArchitecture: amd64\nMaintainer: ExLei\nDescription: Excel/CSV to PPTX flashcard generator\n' "${VERSION}" > "${PKG}/DEBIAN/control"
             dpkg-deb --build "${PKG}" "${{ github.workspace }}/xlsx-to-pptx-${SUFFIX}.deb"
             ls -lh "${{ github.workspace }}/xlsx-to-pptx-${SUFFIX}.deb"
 
@@ -79,7 +71,7 @@ EOF
             ls -lh "${{ github.workspace }}/xlsx-to-pptx-${SUFFIX}.pkg"
 
           else
-            cp 英语助记卡片生成 "${{ github.workspace }}/xlsx-to-pptx-${SUFFIX}.exe"
+            cp 英语助记卡片生成.exe "${{ github.workspace }}/xlsx-to-pptx-${SUFFIX}.exe"
             ls -lh "${{ github.workspace }}/xlsx-to-pptx-${SUFFIX}.exe"
           fi
 

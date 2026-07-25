@@ -2,15 +2,14 @@
 
 Excel/CSV 词汇表 → 16:9 PPTX 单词幻灯片，一键生成。
 
-纯 Rust 实现，零运行时依赖。**一个二进制通吃 CLI + GUI**：双击启动图形界面，命令行传参即走 CLI。
+纯 Rust 实现。**一个二进制通吃 CLI + GUI**：双击启动图形界面，命令行传参即走 CLI。
 
 - **双模式一个文件**：双击 → GUI；传参 → CLI
 - **多格式输入**：Excel (.xlsx) / CSV（UTF-8 / GBK / GB2312 / GB18030）
 - **自定义模板**：用户在 PowerPoint 中设计排版，软件填入数据
-- **PPTX 渲染 PNG**：解析幻灯片 XML 精确还原排版，零外部依赖
+- **PNG 导出**：模板模式调用本地 Office/LibreOffice/WPS 渲染，像素级精确
 - **批量处理**：遍历目录，continue-on-error，汇总报告
 - **跨平台**：Windows / macOS / Linux
-- **系统字体**：自动探测 + 多层回退，IPA 音标和中文正常显示
 - **可诊断**：NDJSON 结构化日志 + `diag` 子命令，Agent 可自动定位问题
 - **文件监听**：外部修改自动刷新预览
 
@@ -46,11 +45,11 @@ Excel/CSV 词汇表 → 16:9 PPTX 单词幻灯片，一键生成。
 英语助记卡片生成 generate -i words.xlsx -f
 
 # 导出 PPTX 为 PNG
-英语助记卡片生成 export-png -i output.pptx -o ./png/
-
-# Excel/CSV 直接导出 PNG（内部生成 PPTX → 渲染）
+# Excel/CSV 直接导出 PNG（需安装 Office / LibreOffice / WPS）
 英语助记卡片生成 export-png -i words.xlsx -t 模板.pptx -o ./png/
 
+# 无模板导出 PNG（内置 SVG 管线，无需外部软件）
+英语助记卡片生成 export-png -i words.xlsx -o ./png/
 # 生成 PPTX 示例模板（含 {{占位符}}）
 英语助记卡片生成 template-pptx -o 示例模板.pptx
 
@@ -58,9 +57,8 @@ Excel/CSV 词汇表 → 16:9 PPTX 单词幻灯片，一键生成。
 英语助记卡片生成 template -o 单词表模板.xlsx
 
 # 诊断导出问题
-英语助记卡片生成 diag export.ndjson --summary
-英语助记卡片生成 diag export.ndjson --blank-slides
-英语助记卡片生成 diag export.ndjson --font-trace
+英语助记卡片生成 diag export_diag.ndjson --summary
+英语助记卡片生成 diag export_diag.ndjson --font-trace
 ## 数据格式
 
 Excel 需包含以下列（CSV 同理）：
@@ -108,9 +106,8 @@ Excel 需包含以下列（CSV 同理）：
 - 不需要的字段不放占位符即可
 - 前后文字保留：`词根词缀：{{词根词缀}}` → `词根词缀：ap-ple`
 - 条目数超过模板幻灯片数时自动复制最后一张
-- PNG 导出会解析模板 XML，精确还原字号、颜色、对齐、位置
-
-### Excel 数据模板
+- PNG 导出（模板模式）需要本地安装 Office / LibreOffice / WPS 任一，自动检测调用
+- PNG 导出（无模板模式）使用内置管线，零外部依赖
 
 ```bash
 英语助记卡片生成 template -o 单词表.xlsx
@@ -126,7 +123,7 @@ cargo build && cargo test --workspace
 cargo build --release --target x86_64-pc-windows-gnu
 ```
 
-产物：`target/x86_64-pc-windows-gnu/release/英语助记卡片生成.exe` (~4.6 MB)
+产物：`target/x86_64-pc-windows-gnu/release/英语助记卡片生成.exe` (~6-9 MB)
 
 ## 架构
 
@@ -138,7 +135,10 @@ crates/
 │   ├── template_reader.rs  # 扫描/替换 {{占位符}}
 │   ├── template_pptx.rs    # 生成示例 PPTX 模板
 │   ├── template.rs         # Excel 模板导出
-│   ├── png_export.rs       # PPTX → PNG（解析 XML → SVG → resvg 渲染）
+│   ├── renderer.rs         # PPTX→PNG 外部渲染器（Office/LibreOffice/WPS）
+│   ├── png_export/         # 内置 PNG 降级管线（无模板时使用）
+│   │   ├── mod.rs
+│   │   └── pipeline.rs     # 字体探测 → SVG → resvg 渲染
 │   └── types.rs            # WordEntry, 错误类型
 ├── cli/               # CLI 逻辑 (clap)，含 diag 诊断子命令
 │   └── lib.rs
@@ -158,13 +158,13 @@ crates/
 ```bash
 # 两步诊断任何问题
 英语助记卡片生成 export-png -i words.xlsx -o ./output/     # 导出（自动生成日志）
-英语助记卡片生成 diag ./output/export_*.ndjson --summary     # 查看诊断
+英语助记卡片生成 diag ./output/export_diag.ndjson --summary     # 查看诊断
 
 # 常用查询
-英语助记卡片生成 diag export.ndjson --blank-slides           # 哪些 slide 可能空白？
-英语助记卡片生成 diag export.ndjson --font-trace             # 用了什么字体？哪些缺失？
-英语助记卡片生成 diag export.ndjson --errors                 # 所有错误和警告
-英语助记卡片生成 diag export.ndjson --slide 2                # 单张 slide 完整详情
+英语助记卡片生成 diag export_diag.ndjson --blank-slides           # 哪些 slide 可能空白？
+英语助记卡片生成 diag export_diag.ndjson --font-trace             # 用了什么字体？哪些缺失？
+英语助记卡片生成 diag export_diag.ndjson --errors                 # 所有错误和警告
+英语助记卡片生成 diag export_diag.ndjson --slide 2                # 单张 slide 完整详情
 ```
 
 **完整参考：** [诊断指南](docs/diagnostics.md) — NDJSON 格式规范、Agent 诊断工作流、jq/Python 脚本示例、日志文件管理。
@@ -173,12 +173,11 @@ crates/
 
 | 问题 | 诊断命令 | 解读 |
 |------|---------|------|
-| PNG 空白/文字缺失 | `diag export.ndjson --blank-slides` | density=0% + 有 text 元素 → 字体；density=0% + 无 text 元素 → 数据为空 |
-| 中文显示为方框 | `diag export.ndjson --font-trace` | cjk chain 全部 [✗] → 安装中文字体 |
-| 音标显示为方框 | `diag export.ndjson --font-trace` | latin chain 全部 [✗] → 安装 DejaVu / Segoe UI |
-| emoji 显示为方框 | `diag export.ndjson --font-trace` | emoji chain 全部 [✗] → 安装 emoji 字体 |
-| 部分字段未显示 | `diag export.ndjson --slide N` | 查看 fields_skipped → reason 列 |
-| 导出卡住 | `tail -5 export.ndjson` | 最后一条事件定位卡住位置 |
+| 中文显示为方框 | `diag export_diag.ndjson --font-trace` | cjk chain 全部 [✗] → 安装中文字体 |
+| 音标显示为方框 | `diag export_diag.ndjson --font-trace` | latin chain 全部 [✗] → 安装 DejaVu / Segoe UI |
+| emoji 显示为方框 | `diag export_diag.ndjson --font-trace` | emoji chain 全部 [✗] → 安装 emoji 字体 |
+| 模板模式报错"未检测到渲染器" | — | 安装 Office / LibreOffice / WPS 任一即可 |
+| 导出卡住 | `tail -5 export_diag.ndjson` | 最后一条事件定位卡住位置 |
 | CSV 中文乱码 | — | 用 `-e GBK` 指定编码 |
 | 模板缺少 `{{单词}}` | — | 至少一张幻灯片须含 `{{单词}}` |
 
