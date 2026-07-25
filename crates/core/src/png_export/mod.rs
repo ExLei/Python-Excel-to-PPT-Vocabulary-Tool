@@ -1,7 +1,6 @@
 pub mod pipeline;
 
 use std::collections::HashMap;
-use std::io::Read;
 use std::path::Path;
 use std::sync::atomic::AtomicBool;
 
@@ -12,29 +11,21 @@ use crate::types::WordEntry;
 
 const PNG_W: u32 = 1920;
 const PNG_H: u32 = 1080;
-const SLIDE_W_EMU: f32 = 12_192_000.0;
-const SLIDE_H_EMU: f32 = 6_858_000.0;
-
-pub(super) fn emu_to_px_x(emu: i64) -> i32 {
-    (emu as f32 * PNG_W as f32 / SLIDE_W_EMU) as i32
-}
-pub(super) fn emu_to_px_y(emu: i64) -> i32 {
-    (emu as f32 * PNG_H as f32 / SLIDE_H_EMU) as i32
-}
-pub(super) fn emu_to_px_w(emu: i64) -> u32 {
-    (emu as f32 * PNG_W as f32 / SLIDE_W_EMU) as u32
-}
 
 #[derive(Debug, Clone)]
 pub struct PlaceholderLayout {
     pub name: String,
     pub x: i32,
+    pub h: u32,
     pub y: i32,
     pub w: u32,
     pub font_size_pt: f32,
     pub bold: bool,
     pub color: Rgba<u8>,
     pub align_center: bool,
+    pub font_family: Option<String>,
+    /// Text vertical anchor: "t" (top), "ctr" (center), or "b" (bottom)
+    pub text_anchor: String,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -50,27 +41,6 @@ pub enum PngExportError {
     #[error("template parse: {0}")]
     TemplateParse(String),
 }
-
-pub fn parse_template(
-    template_path: &Path,
-) -> Result<HashMap<String, PlaceholderLayout>, PngExportError> {
-    let file = std::fs::File::open(template_path)?;
-    let mut archive = zip::ZipArchive::new(file)
-        .map_err(|e| PngExportError::TemplateParse(format!("ZIP: {e}")))?;
-    for i in 0..archive.len() {
-        let mut e = archive
-            .by_index(i)
-            .map_err(|e| PngExportError::TemplateParse(format!("ZIP: {e}")))?;
-        if e.name() == "ppt/slides/slide1.xml" {
-            let mut xml = String::new();
-            e.read_to_string(&mut xml)?;
-            let mut diag = DiagStore::new();
-            return pipeline::parse_slide_xml(&xml, &mut diag);
-        }
-    }
-    Err(PngExportError::TemplateParse("no slide1.xml".into()))
-}
-
 /// Render a single slide as an SVG string for resvg-based PNG export.
 ///
 /// Generates a 1920×1080 SVG with text elements positioned according to
@@ -107,7 +77,6 @@ pub fn render_slide_to_svg(
     let mut default_y = 140i32;
     let margin = 80i32;
     let _text_w = (w as i32 - margin * 2) as u32;
-    let has_layout = !layout.is_empty();
 
     for (name, value, _default_size, _color) in &fields {
         if value.is_empty() {
@@ -117,12 +86,18 @@ pub fn render_slide_to_svg(
             // Use layout from template
             let font_weight = if pl.bold { "bold" } else { "normal" };
             let color_hex = format!("#{:02x}{:02x}{:02x}", pl.color[0], pl.color[1], pl.color[2]);
+            let font_family = pl.font_family.as_deref().unwrap_or("sans-serif");
+            let text_y = match pl.text_anchor.as_str() {
+                "ctr" => pl.y + pl.h as i32 / 2 + pl.font_size_pt as i32 / 3,
+                "b" => pl.y + pl.h as i32 - 4,
+                _ => pl.y + pl.font_size_pt as i32, // "t" (top) — default
+            };
             svg.push_str(&format!(
-                r##"<text x="{}" y="{}" font-family="sans-serif" font-size="{}" font-weight="{font_weight}" fill="{color_hex}">{}</text>"##,
-                pl.x, pl.y + pl.font_size_pt as i32, pl.font_size_pt,
+                r##"<text x="{}" y="{text_y}" font-family="{font_family}, sans-serif" font-size="{}" font-weight="{font_weight}" fill="{color_hex}">{}</text>"##,
+                pl.x, pl.font_size_pt,
                 xml_escape(value),
             ));
-        } else if !has_layout {
+        } else {
             // Default layout: center word/phonetic, left-align others
             let (label, size, color_hex) = match *name {
                 "单词" => ("", 72.0, default_color),
@@ -300,28 +275,6 @@ pub fn export_entries_to_png_with_cancel(
     }
     result
 }
-
-pub fn export_with_template(
-    entries: &[WordEntry],
-    template_path: &Path,
-    output_dir: &Path,
-) -> Result<Vec<std::path::PathBuf>, PngExportError> {
-    let mut diag = DiagStore::new();
-    let font_cfg = pipeline::probe_fonts(&mut diag);
-    let layout = parse_template(template_path)?;
-    let result = export_with_layout(entries, output_dir, &layout, &font_cfg, None, &mut diag);
-    match diag.write_ndjson_to_file(&output_dir.join("export_diag.ndjson")) {
-        Ok(_) => eprintln!(
-            "  诊断日志: {}",
-            output_dir.join("export_diag.ndjson").display()
-        ),
-        Err(e) => eprintln!("  警告: 无法写入诊断日志: {e}"),
-    }
-    result
-}
-
-/// Render a single entry to a PNG file.
-///
 /// Returns the path to the rendered PNG on success.
 pub fn render_one_slide(
     entry: &WordEntry,
